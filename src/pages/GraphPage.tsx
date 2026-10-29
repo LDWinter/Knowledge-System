@@ -577,7 +577,16 @@ export default function GraphPage() {
             context.fillStyle = "#B9B5D6";
             context.fillText(graphLink.type, x, y);
           }}
+          // La zona de clic cubre todo el anillo (radio 10) con margen, no solo el círculo relleno
+          nodePointerAreaPaint={(node, color, context) => {
+            context.fillStyle = color;
+            context.beginPath();
+            context.arc(node.x ?? 0, node.y ?? 0, 13, 0, 2 * Math.PI);
+            context.fill();
+          }}
           onNodeClick={handleNodeClick}
+          // Un clic con el mouse un poco movido cuenta como arrastre: también selecciona el nodo
+          onNodeDragEnd={handleNodeClick}
           onNodeHover={(node) => setHoveredId(node ? String(node.id) : null)}
           onBackgroundClick={() => setSelectedId(null)}
         />
