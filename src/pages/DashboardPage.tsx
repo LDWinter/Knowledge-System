@@ -133,7 +133,10 @@ export default function DashboardPage() {
       <Box
         sx={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
+          gridTemplateColumns: {
+            xs: "repeat(2, minmax(0, 1fr))",
+            lg: "repeat(4, minmax(0, 1fr))",
+          },
           gap: 2,
         }}
       >
@@ -252,7 +255,11 @@ export default function DashboardPage() {
                     )}
 
                     <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                      <Typography variant="body2" fontWeight={600} noWrap>
+                      <Typography
+                        variant="body2"
+                        sx={{ fontWeight: 600 }}
+                        noWrap
+                      >
                         {isOk
                           ? `Se sincronizó ${source.name}`
                           : `Falló la conexión con ${source.name}`}
@@ -278,7 +285,7 @@ export default function DashboardPage() {
           <WarningAmberIcon color="warning" />
 
           <Box>
-            <Typography fontWeight={600}>
+            <Typography sx={{ fontWeight: 600 }}>
               1 posible duplicado detectado
             </Typography>
 

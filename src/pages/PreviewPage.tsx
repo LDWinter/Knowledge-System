@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import ErrorIcon from "@mui/icons-material/Error";
 import {
   Box,
   Typography,
@@ -28,7 +29,10 @@ const rows = [
   ["1005", "Vinos del Sur", "hola@vinosdelsur.com", "Neuquén", "30/02/2025"],
 ];
 
-const rowsWithErrors = new Set([3, 4]);
+const cellErrors: Record<number, Record<number, string>> = {
+  3: { 2: "Formato de email inválido" },
+  4: { 4: "La fecha indicada no existe" },
+};
 
 export default function PreviewPage() {
   const navigate = useNavigate();
@@ -74,7 +78,8 @@ export default function PreviewPage() {
 
           <TableBody>
             {rows.map((row, rowIndex) => {
-              const hasError = rowsWithErrors.has(rowIndex);
+              const rowErrors = cellErrors[rowIndex];
+              const hasError = Boolean(rowErrors);
 
               return (
                 <TableRow
@@ -83,9 +88,48 @@ export default function PreviewPage() {
                     bgcolor: hasError ? "rgba(237,108,2,.10)" : undefined,
                   }}
                 >
-                  {row.map((cell, cellIndex) => (
-                    <TableCell key={cellIndex}>{cell}</TableCell>
-                  ))}
+                  {row.map((cell, cellIndex) => {
+                    const error = rowErrors?.[cellIndex];
+
+                    return (
+                      <TableCell
+                        key={cellIndex}
+                        sx={
+                          error
+                            ? {
+                                color: "error.light",
+                                bgcolor: "rgba(211,47,47,.12)",
+                              }
+                            : undefined
+                        }
+                      >
+                        <Box
+                          sx={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 0.75,
+                            minWidth: 0,
+                          }}
+                        >
+                          {error && (
+                            <ErrorIcon
+                              color="error"
+                              fontSize="small"
+                              aria-hidden="true"
+                            />
+                          )}
+                          <Box>
+                            <Typography variant="body2">{cell}</Typography>
+                            {error && (
+                              <Typography variant="caption" color="error.light">
+                                {error}
+                              </Typography>
+                            )}
+                          </Box>
+                        </Box>
+                      </TableCell>
+                    );
+                  })}
                 </TableRow>
               );
             })}

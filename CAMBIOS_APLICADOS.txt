@@ -1,0 +1,87 @@
+CAMBIOS APLICADOS — KNOWLEDGE SYSTEM
+Fecha de actualización: 29/10/2026
+
+1. DOCUMENTO Y METADATOS
+Archivo: index.html
+- El idioma del documento se configuró como es-AR.
+- Se cambió el título de la pestaña a "Knowledge System | Gestión del conocimiento".
+- Se agregó una descripción para buscadores y el color de tema del navegador.
+
+2. ESTILOS Y ERRORES DE TIPOS
+Archivos: src/components/Footer.tsx, src/pages/AddSourcePage.tsx,
+src/pages/DashboardPage.tsx, src/pages/EntityPage.tsx,
+src/pages/GraphPage.tsx y src/components/Layout.tsx
+- Las propiedades de peso tipográfico que causaban errores de TypeScript se trasladaron a la prop sx de MUI Typography.
+- Se mantuvo la jerarquía visual existente y se corrigieron incompatibilidades con la versión instalada de Material UI.
+
+3. INICIO Y FUENTES: TARJETAS RESPONSIVE
+Archivos: src/pages/DashboardPage.tsx y src/pages/SourcesPage.tsx
+- Las tarjetas de resumen se muestran en dos columnas en ventanas pequeñas y en cuatro columnas en pantallas grandes.
+- La tabla de Fuentes queda dentro de un contenedor con desplazamiento horizontal para anchos reducidos.
+
+4. CARGA DE ARCHIVOS Y VISTA PREVIA
+Archivos: src/pages/AddSourcePage.tsx y src/pages/PreviewPage.tsx
+- La zona de carga informa que admite archivos .xlsx y .csv.
+- Se puede elegir un archivo con el explorador o arrastrarlo y soltarlo en la zona de carga.
+- La zona cambia su borde y fondo al arrastrar un archivo sobre ella.
+- La vista previa marca cada celda inválida con color e icono de error, y muestra el motivo junto al valor.
+- Se conservó el resaltado de las filas con errores y el resumen general de registros no importables.
+
+5. GRAFO: PRESENTACIÓN Y EXPLORACIÓN
+Archivo: src/pages/GraphPage.tsx
+- Se desactivó el tooltip nativo de nodos que duplicaba el rótulo personalizado.
+- Los nombres de nodo se dibujan al pasar el cursor o seleccionar el nodo, sobre una etiqueta de fondo contrastante.
+- Al terminar el diseño inicial, la red se encuadra automáticamente en el espacio disponible.
+- Se añadieron halos de color a los nodos y se mantienen los controles para acercar, alejar y encuadrar.
+- Se incorporó búsqueda de entidades dentro del grafo. Al elegir un resultado, el grafo centra la entidad y activa su tipo si un filtro la ocultaba.
+- El nodo seleccionado y sus conexiones se resaltan; los nodos y enlaces no relacionados se atenúan.
+- La información seleccionada aparece en un panel adaptable con tipo, fuente, atributos y conexiones.
+- Las conexiones del panel se pueden seleccionar para enfocar otra entidad.
+- El panel conserva las acciones para abrir la nota, editar o eliminar la entidad.
+- Al pasar el cursor sobre un enlace se muestra el tipo de relación.
+- Si se desactivan todos los filtros de tipo, aparece un mensaje con una acción para restablecerlos.
+
+6. BÚSQUEDA GLOBAL
+Archivo: src/components/Layout.tsx
+- La barra superior busca entidades por nombre, tipo o fuente, y fuentes por nombre, tipo o estado.
+- Cada resultado muestra si corresponde a una entidad o una fuente, junto con su contexto.
+- Se muestran hasta ocho resultados coincidentes.
+- Al elegir una entidad se abre su ficha; al elegir una fuente se abre la lista de Fuentes con esa fuente filtrada.
+- Enter abre el resultado resaltado; las flechas arriba y abajo cambian el resultado resaltado; Escape cierra la lista.
+- La lista comunica el estado de búsqueda y los resultados mediante atributos accesibles.
+- Al enfocar la búsqueda se actualizan los datos para incluir cambios recientes.
+
+7. FILTRO DE FUENTES
+Archivo: src/pages/SourcesPage.tsx
+- Se agregó un campo para filtrar por nombre, tipo o estado, además del total de resultados mostrados.
+- El filtro se refleja en el parámetro buscar de la URL; se puede editar, limpiar o compartir la URL filtrada.
+- La página distingue entre una lista vacía y una búsqueda sin coincidencias.
+- Sincronizar una fuente actualiza su estado y hora de última sincronización en el servicio compartido.
+- Eliminar una fuente actualiza el servicio compartido; ambas acciones se conservan entre recargas.
+
+8. PERSISTENCIA LOCAL DE DATOS DE DEMOSTRACIÓN
+Archivo: src/services/api.ts
+- Fuentes, entidades y relaciones se guardan en localStorage usando claves versionadas de Knowledge System.
+- Si no hay datos guardados, se inicializan desde src/mocks/data.ts.
+- Crear, editar y eliminar entidades persiste los cambios; al eliminar una entidad también se guardan sus relaciones eliminadas.
+- Crear relaciones desde el formulario de nodos también las conserva.
+- Sincronizar y eliminar fuentes persiste su nuevo estado.
+- El siguiente identificador se calcula a partir de los datos guardados para evitar colisiones después de una recarga.
+- Si localStorage no está disponible, está dañado o contiene datos con formato inválido, la aplicación utiliza los datos de demostración en memoria.
+
+9. DOCUMENTACIÓN
+Archivo: README.md
+- Se documentó el uso de localStorage para conservar fuentes, entidades y relaciones entre recargas.
+- Se aclaró que los datos mocks siguen siendo la fuente inicial y que la aplicación puede funcionar en memoria si el almacenamiento local no está disponible.
+- Se agregó la búsqueda global y la persistencia local al alcance implementado.
+
+10. LIMPIEZA DE LA PRUEBA DE PERSISTENCIA
+- Para comprobar la persistencia se creó la entidad temporal "Prueba persistencia temporal" y se confirmó que seguía disponible después de recargar el navegador.
+- Tras la comprobación, se eliminó esa entidad con autorización del usuario.
+- Se recargó la app y se confirmó que la búsqueda ya no encuentra esa entidad. No queda ningún registro de prueba.
+
+11. VERIFICACIÓN
+- npm run lint: completado correctamente.
+- npm run build: completado correctamente.
+- Vite muestra una advertencia informativa porque el bundle principal supera 500 kB minificado; no bloquea la compilación.
+- Verificación manual en el navegador: se comprobaron la selección de nodos, el panel de detalles, los filtros vacíos, la búsqueda global, el filtro de fuentes y la persistencia después de recargar.

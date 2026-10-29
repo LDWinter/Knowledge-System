@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Outlet, NavLink, useLocation } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react";
+import { Outlet, NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Box,
   Drawer,
@@ -13,6 +13,7 @@ import {
   InputBase,
   Avatar,
   IconButton,
+  Paper,
   useMediaQuery,
   useTheme,
 } from "@mui/material";
@@ -24,8 +25,18 @@ import HubIcon from "@mui/icons-material/Hub";
 import SearchIcon from "@mui/icons-material/Search";
 
 import Footer from "./Footer";
+import { getEntities, getSources } from "../services/api";
+import type { Entity, Source } from "../types";
 
 const DRAWER_WIDTH = 240;
+
+type GlobalSearchResult = {
+  key: string;
+  kind: "Entidad" | "Fuente";
+  label: string;
+  detail: string;
+  to: string;
+};
 
 const navigationItems = [
   { to: "/", label: "Inicio", icon: <DashboardIcon /> },
@@ -36,8 +47,84 @@ const navigationItems = [
 export default function Layout() {
   const { pathname } = useLocation();
   const theme = useTheme();
+  const navigate = useNavigate();
   const isDesktop = useMediaQuery(theme.breakpoints.up("md"));
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [searchText, setSearchText] = useState("");
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [highlightedResultIndex, setHighlightedResultIndex] = useState(0);
+  const [searchEntities, setSearchEntities] = useState<Entity[]>([]);
+  const [searchSources, setSearchSources] = useState<Source[]>([]);
+
+  const refreshSearchData = useCallback(() => {
+    Promise.all([getEntities(), getSources()]).then(([loadedEntities, loadedSources]) => {
+      setSearchEntities(loadedEntities);
+      setSearchSources(loadedSources);
+    });
+  }, []);
+
+  useEffect(() => {
+    refreshSearchData();
+  }, [refreshSearchData]);
+
+  const searchResults = useMemo<GlobalSearchResult[]>(() => {
+    const query = searchText.trim().toLocaleLowerCase("es-AR");
+    if (!query) return [];
+
+    const entityResults = searchEntities
+      .filter((entity) =>
+        `${entity.name} ${entity.type} ${entity.source}`
+          .toLocaleLowerCase("es-AR")
+          .includes(query),
+      )
+      .map((entity) => ({
+        key: `entity-${entity.id}`,
+        kind: "Entidad" as const,
+        label: entity.name,
+        detail: `${entity.type} · ${entity.source}`,
+        to: `/entidad/${entity.id}`,
+      }));
+
+    const sourceResults = searchSources
+      .filter((source) =>
+        `${source.name} ${source.type} ${source.status}`
+          .toLocaleLowerCase("es-AR")
+          .includes(query),
+      )
+      .map((source) => ({
+        key: `source-${source.id}`,
+        kind: "Fuente" as const,
+        label: source.name,
+        detail: `${source.type} · ${source.status === "ok" ? "Funcionando" : "Con error"}`,
+        to: `/fuentes?buscar=${encodeURIComponent(source.name)}`,
+      }));
+
+    return [...entityResults, ...sourceResults].slice(0, 8);
+  }, [searchEntities, searchSources, searchText]);
+
+  const openSearchResult = (result: GlobalSearchResult) => {
+    navigate(result.to);
+    setSearchText("");
+    setIsSearchFocused(false);
+    closeMobileMenu();
+  };
+
+  const handleSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Escape") {
+      setSearchText("");
+      setIsSearchFocused(false);
+    } else if (event.key === "ArrowDown" && searchResults.length) {
+      event.preventDefault();
+      setHighlightedResultIndex((current) => (current + 1) % searchResults.length);
+    } else if (event.key === "ArrowUp" && searchResults.length) {
+      event.preventDefault();
+      setHighlightedResultIndex((current) =>
+        (current - 1 + searchResults.length) % searchResults.length,
+      );
+    } else if (event.key === "Enter" && searchResults[highlightedResultIndex]) {
+      openSearchResult(searchResults[highlightedResultIndex]);
+    }
+  };
 
   const closeMobileMenu = () => setIsMobileMenuOpen(false);
 
@@ -154,6 +241,7 @@ export default function Layout() {
 
             <Box
               sx={{
+                position: "relative",
                 display: "flex",
                 alignItems: "center",
                 gap: 1,
@@ -169,7 +257,92 @@ export default function Layout() {
             >
               <SearchIcon fontSize="small" color="disabled" />
 
-              <InputBase placeholder="Buscar en el sistema…" fullWidth />
+              <InputBase
+                placeholder="Buscar entidades y fuentes…"
+                value={searchText}
+                onChange={(event) => {
+                  setSearchText(event.target.value);
+                  setHighlightedResultIndex(0);
+                }}
+                onFocus={() => {
+                  setIsSearchFocused(true);
+                  refreshSearchData();
+                }}
+                onBlur={() => window.setTimeout(() => setIsSearchFocused(false), 120)}
+                onKeyDown={handleSearchKeyDown}
+                inputProps={{
+                  "aria-label": "Buscar entidades y fuentes",
+                  "aria-autocomplete": "list",
+                  "aria-expanded": isSearchFocused && Boolean(searchText.trim()),
+                  "aria-controls": isSearchFocused && searchText.trim()
+                    ? "global-search-results"
+                    : undefined,
+                  "aria-activedescendant": searchResults.length
+                    ? `global-search-option-${highlightedResultIndex}`
+                    : undefined,
+                }}
+                fullWidth
+              />
+
+              {isSearchFocused && Boolean(searchText.trim()) && (
+                <Paper
+                  component="ul"
+                  id="global-search-results"
+                  role="listbox"
+                  elevation={12}
+                  sx={{
+                    position: "absolute",
+                    top: "calc(100% + 10px)",
+                    left: 0,
+                    right: 0,
+                    zIndex: 1300,
+                    maxHeight: 360,
+                    overflowY: "auto",
+                    p: 0.75,
+                    m: 0,
+                    listStyle: "none",
+                  }}
+                >
+                  {searchResults.length ? (
+                    searchResults.map((result, index) => (
+                      <ListItemButton
+                        key={result.key}
+                        id={`global-search-option-${index}`}
+                        component="li"
+                        role="option"
+                        aria-selected={highlightedResultIndex === index}
+                        onMouseEnter={() => setHighlightedResultIndex(index)}
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => openSearchResult(result)}
+                        sx={{
+                          display: "block",
+                          borderRadius: 1.5,
+                          py: 1,
+                          bgcolor: highlightedResultIndex === index
+                            ? "rgba(139,108,255,.14)"
+                            : undefined,
+                        }}
+                      >
+                        <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>
+                            {result.label}
+                          </Typography>
+                          <Typography variant="caption" color="primary.light">
+                            {result.kind}
+                          </Typography>
+                        </Box>
+                        <Typography variant="caption" color="text.secondary" noWrap>
+                          {result.detail}
+                        </Typography>
+                      </ListItemButton>
+                    ))
+                  ) : (
+                    <Typography sx={{ px: 1.5, py: 2 }} variant="body2" color="text.secondary">
+                      No encontré entidades ni fuentes con ese texto.
+                    </Typography>
+                  )}
+                </Paper>
+              )}
             </Box>
 
             <Box sx={{ flexGrow: 1, display: { xs: "none", sm: "block" } }} />

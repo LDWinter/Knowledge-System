@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent } from "react";
+import { useState, type ChangeEvent, type DragEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Box,
@@ -52,11 +52,21 @@ const sourceTypes = [
 export default function AddSourcePage() {
   const [selectedType, setSelectedType] = useState("Excel / CSV");
   const [file, setFile] = useState<File | null>(null);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
 
   const navigate = useNavigate();
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     setFile(event.target.files?.[0] ?? null);
+  };
+
+  const handleFileDrop = (event: DragEvent<HTMLLabelElement>) => {
+    event.preventDefault();
+    setIsDraggingFile(false);
+    const droppedFile = event.dataTransfer.files[0];
+    if (droppedFile && /\.(xlsx|csv)$/i.test(droppedFile.name)) {
+      setFile(droppedFile);
+    }
   };
 
   const handleCancel = () => {
@@ -104,7 +114,9 @@ export default function AddSourcePage() {
               >
                 <Box sx={{ color: "primary.main" }}>{sourceType.icon}</Box>
 
-                <Typography fontWeight={600}>{sourceType.name}</Typography>
+                <Typography sx={{ fontWeight: 600 }}>
+                  {sourceType.name}
+                </Typography>
               </CardActionArea>
             </Card>
           );
@@ -116,16 +128,33 @@ export default function AddSourcePage() {
           <Button
             component="label"
             fullWidth
+            onDragOver={(event) => {
+              event.preventDefault();
+              setIsDraggingFile(true);
+            }}
+            onDragLeave={() => setIsDraggingFile(false)}
+            onDrop={handleFileDrop}
             sx={{
-              border: "2px dashed #C9CBE0",
+              border: "2px dashed",
+              borderColor: isDraggingFile
+                ? "primary.light"
+                : "rgba(232,231,245,.36)",
+              bgcolor: isDraggingFile ? "rgba(139,108,255,.12)" : "transparent",
               py: 6,
               flexDirection: "column",
               gap: 1,
+              transition: "background-color .2s, border-color .2s",
             }}
           >
             <UploadFileIcon fontSize="large" />
 
-            {file?.name || "Elegí un archivo .xlsx o .csv"}
+            <Typography sx={{ fontWeight: 600 }}>
+              {file?.name ||
+                "Arrastrá un archivo acá o hacé clic para buscarlo"}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Formatos admitidos: .xlsx y .csv
+            </Typography>
 
             <input
               hidden

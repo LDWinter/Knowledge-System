@@ -122,7 +122,9 @@ getEntities();
 getRelationships();
 ```
 
-Hoy esas funciones devuelven los datos de `src/mocks/data.ts` con una pequeña demora simulada. Cuando el backend esté disponible, **solo hay que cambiar el interior de estas funciones** (por ejemplo, con `fetch` a la API). Las pantallas no se modifican.
+Hoy esas funciones devuelven los datos de `src/mocks/data.ts` con una pequeña demora simulada. Los cambios del prototipo se guardan en `localStorage` (entidades, relaciones y fuentes), así que sobreviven al recargar el navegador. Si `localStorage` no está disponible, la aplicación sigue funcionando con los datos en memoria.
+
+Cuando el backend esté disponible, **solo hay que cambiar el interior de estas funciones** (por ejemplo, con `fetch` a la API). Las pantallas no se modifican.
 
 Los tipos de datos están definidos en `src/types.ts`:
 
@@ -135,6 +137,8 @@ Los tipos de datos están definidos en `src/types.ts`:
 **Incluido en el prototipo**
 
 - Navegación completa, diseño oscuro y diseño responsive.
+- Búsqueda global de entidades y fuentes desde la barra superior.
+- Persistencia local de los cambios de demostración entre recargas.
 - Listado, sincronización y eliminación de fuentes (sobre datos de ejemplo).
 - Selección de tipo de fuente y elección de archivo Excel/CSV.
 - Grafo con filtros, zoom, nombres de nodos y navegación a cada entidad.

@@ -167,10 +167,10 @@ export default function EntityPage() {
         }}
       >
         <Typography
-          fontWeight={700}
           sx={{
             p: 2,
             pb: 0,
+            fontWeight: 700,
           }}
         >
           Conectada con
