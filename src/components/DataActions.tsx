@@ -13,8 +13,9 @@ import {
 } from "@mui/material";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
 import DeleteSweepIcon from "@mui/icons-material/DeleteSweep";
+import DownloadIcon from "@mui/icons-material/Download";
 
-import { clearData, importData } from "../services/api";
+import { clearData, getEntities, getRelationships, importData } from "../services/api";
 import type { ImportPayload } from "../types";
 
 type DataActionsProps = {
@@ -70,6 +71,24 @@ export default function DataActions({ onChange }: DataActionsProps) {
     setError(null);
   };
 
+  // Descarga todos los datos en el mismo formato que «Importar JSON» (con replace: reimportarlo los restaura)
+  const handleExport = async () => {
+    setError(null);
+    try {
+      const [entities, relationships] = await Promise.all([getEntities(), getRelationships()]);
+      const payload: ImportPayload = { replace: true, entities, relationships };
+      const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `knowledge-system-${new Date().toISOString().slice(0, 10)}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+      setNotice(`Se exportaron ${entities.length} entidades y ${relationships.length} relaciones.`);
+    } catch (exportError) {
+      setNotice(exportError instanceof Error ? exportError.message : "No se pudo exportar.");
+    }
+  };
+
   const isEmptyPayload = payload !== null && payload.entities.length === 0 && payload.relationships.length === 0;
 
   return (
@@ -86,6 +105,9 @@ export default function DataActions({ onChange }: DataActionsProps) {
       />
       <Button variant="outlined" startIcon={<UploadFileIcon />} onClick={() => fileInput.current?.click()}>
         Importar JSON
+      </Button>
+      <Button variant="outlined" startIcon={<DownloadIcon />} onClick={handleExport}>
+        Exportar JSON
       </Button>
       <Button variant="outlined" color="error" startIcon={<DeleteSweepIcon />} onClick={() => setIsClearOpen(true)}>
         Vaciar datos
