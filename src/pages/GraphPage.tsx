@@ -42,14 +42,19 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import CloseIcon from "@mui/icons-material/Close";
 import DataObjectIcon from "@mui/icons-material/DataObject";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
+import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
+import LinkOffIcon from "@mui/icons-material/LinkOff";
+import AddLinkIcon from "@mui/icons-material/AddLink";
 
 import JsonViewer from "../components/JsonViewer";
 import NodeHistory from "../components/NodeHistory";
+import ConnectionDialog from "../components/ConnectionDialog";
 import NodeFormDialog from "../components/NodeFormDialog";
 import {
   createEntity,
   createRelationship,
   deleteEntity,
+  deleteRelationship,
   getEntities,
   getRelationships,
   updateEntity,
@@ -114,6 +119,11 @@ export default function GraphPage() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isJsonOpen, setIsJsonOpen] = useState(false);
   const [panelTab, setPanelTab] = useState(0);
+  // Conectar el nodo seleccionado con otro, o reasignar una conexión existente a otro nodo
+  const [connectionForm, setConnectionForm] = useState<
+    { mode: "add" } | { mode: "reassign"; relationship: Relationship; outgoing: boolean } | null
+  >(null);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const [colorVersion, setColorVersion] = useState(0); // sube al cambiar un color, para redibujar // 0 Detalles, 1 Historial, 2 JSON
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -312,6 +322,46 @@ export default function GraphPage() {
       } else {
         setError(message);
       }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveConnection = async (target: Entity, relationType: string) => {
+    if (!selectedEntity || !connectionForm || isSaving) return;
+    setIsSaving(true);
+    setConnectionError(null);
+    try {
+      if (connectionForm.mode === "add") {
+        await createRelationship({ sourceId: selectedEntity.id, targetId: target.id, type: relationType });
+      } else {
+        // Reasignar = la misma conexión, pero con el otro extremo cambiado por `target`
+        const { relationship, outgoing } = connectionForm;
+        await createRelationship(
+          outgoing
+            ? { sourceId: relationship.sourceId, targetId: target.id, type: relationType }
+            : { sourceId: target.id, targetId: relationship.targetId, type: relationType },
+        );
+        await deleteRelationship(relationship);
+      }
+      setConnectionForm(null);
+      await loadData();
+    } catch (saveError) {
+      setConnectionError(saveError instanceof Error ? saveError.message : "No se pudo guardar la conexión.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleRemoveConnection = async (relationship: Relationship) => {
+    if (isSaving) return;
+    setIsSaving(true);
+    setError(null);
+    try {
+      await deleteRelationship(relationship);
+      await loadData();
+    } catch (removeError) {
+      setError(removeError instanceof Error ? removeError.message : "No se pudo quitar la conexión.");
     } finally {
       setIsSaving(false);
     }
@@ -722,20 +772,24 @@ export default function GraphPage() {
                 ...outgoingRelationships.map((relationship) => ({
                   entityId: relationship.targetId,
                   relation: relationship.type,
+                  relationship,
+                  outgoing: true,
                 })),
                 ...incomingRelationships.map((relationship) => ({
                   entityId: relationship.sourceId,
                   relation: relationship.type,
+                  relationship,
+                  outgoing: false,
                 })),
               ].map((item, index) => {
                 const relatedEntity = entities.find((entity) => entity.id === item.entityId);
                 if (!relatedEntity) return null;
 
                 return (
+                  <Box key={`${item.entityId}-${item.relation}-${index}`} sx={{ display: "flex", alignItems: "center" }}>
                   <ListItemButton
-                    key={`${item.entityId}-${item.relation}-${index}`}
                     onClick={() => focusEntity(relatedEntity)}
-                    sx={{ px: 1, borderRadius: 1 }}
+                    sx={{ px: 1, borderRadius: 1, minWidth: 0 }}
                   >
                     <ListItemText
                       primary={relatedEntity.name}
@@ -755,6 +809,30 @@ export default function GraphPage() {
                       }}
                     />
                   </ListItemButton>
+                  <Tooltip title={`Reasignar a otro ${relatedEntity.type}`}>
+                    <IconButton
+                      size="small"
+                      aria-label="Reasignar conexión"
+                      disabled={isSaving}
+                      onClick={() => {
+                        setConnectionError(null);
+                        setConnectionForm({ mode: "reassign", relationship: item.relationship, outgoing: item.outgoing });
+                      }}
+                    >
+                      <SwapHorizIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Quitar conexión">
+                    <IconButton
+                      size="small"
+                      aria-label="Quitar conexión"
+                      disabled={isSaving}
+                      onClick={() => handleRemoveConnection(item.relationship)}
+                    >
+                      <LinkOffIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  </Box>
                 );
               })}
             </List>
@@ -763,6 +841,16 @@ export default function GraphPage() {
               Esta entidad todavía no tiene conexiones.
             </Typography>
           )}
+          <Button
+            size="small"
+            startIcon={<AddLinkIcon />}
+            onClick={() => {
+              setConnectionError(null);
+              setConnectionForm({ mode: "add" });
+            }}
+          >
+            Conectar con…
+          </Button>
 
           <Divider sx={{ my: 1.5 }} />
           <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
@@ -840,6 +928,28 @@ export default function GraphPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {connectionForm && selectedEntity && (() => {
+        const current = connectionForm.mode === "reassign"
+          ? entities.find((entity) => entity.id === (connectionForm.outgoing
+            ? connectionForm.relationship.targetId
+            : connectionForm.relationship.sourceId))
+          : undefined;
+        return (
+          <ConnectionDialog
+            title={current ? `Mover «${selectedEntity.name}» de «${current.name}» a…` : `Conectar «${selectedEntity.name}» con…`}
+            // Al reasignar se ofrecen nodos del mismo tipo que el actual (p. ej. otra Obra)
+            options={entities.filter((entity) =>
+              entity.id !== selectedEntity.id && (!current || (entity.type === current.type && entity.id !== current.id)),
+            )}
+            initialType={connectionForm.mode === "reassign" ? connectionForm.relationship.type : "relacionado con"}
+            isSubmitting={isSaving}
+            error={connectionError}
+            onClose={() => setConnectionForm(null)}
+            onSubmit={handleSaveConnection}
+          />
+        );
+      })()}
 
       {/* JSON viewer panel */}
       <Drawer

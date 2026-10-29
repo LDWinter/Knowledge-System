@@ -64,6 +64,11 @@ export const deleteEntity = (id: string) =>
 export const getHistory = (id: string) =>
   request<HistoryEntry[]>(`/entities/${encodeURIComponent(id)}/history`);
 
+export const deleteSource = (id: number) => request<void>(`/sources/${id}`, { method: "DELETE" });
+
+export const deleteRelationship = (relationship: Relationship) =>
+  request<void>("/relationships", { method: "DELETE", body: JSON.stringify(relationship) });
+
 export const importData = (payload: ImportPayload) => request<ImportResult>("/import", {
   method: "POST",
   body: JSON.stringify(payload),
