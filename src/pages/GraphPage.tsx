@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type ChangeEvent,
+  type PointerEvent,
   type ReactNode,
 } from "react";
 import { useNavigate } from "react-router-dom";
@@ -98,8 +99,35 @@ const zoomButtons: { label: string; icon: ReactNode; action: ZoomAction }[] = [
 ];
 
 // Zoom a partir del cual se ven los nombres de todos los nodos y el tipo de cada conexión
-const LABEL_ZOOM = 1.6;
-const LINK_LABEL_ZOOM = 2.2;
+const LABEL_ZOOM = 2.6;
+const LINK_LABEL_ZOOM = 2.6;
+const NODE_RADIUS = 10; // radio del anillo de cada nodo, en unidades del grafo
+
+// Fuerza simple de colisión: separa los nodos que se pisan (O(n²), alcanza para unos cientos de nodos)
+function collideForce(distance: number) {
+  let nodes: { x?: number; y?: number; vx?: number; vy?: number }[] = [];
+  const force = (alpha: number) => {
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const a = nodes[i];
+        const b = nodes[j];
+        const dx = (b.x ?? 0) - (a.x ?? 0);
+        const dy = (b.y ?? 0) - (a.y ?? 0);
+        const d = Math.hypot(dx, dy) || 0.01;
+        if (d >= distance) continue;
+        const push = ((distance - d) / d) * 0.5 * Math.max(alpha, 0.3);
+        a.vx = (a.vx ?? 0) - dx * push;
+        a.vy = (a.vy ?? 0) - dy * push;
+        b.vx = (b.vx ?? 0) + dx * push;
+        b.vy = (b.vy ?? 0) + dy * push;
+      }
+    }
+  };
+  force.initialize = (newNodes: typeof nodes) => {
+    nodes = newNodes;
+  };
+  return force;
+}
 
 export default function GraphPage() {
   const [entities, setEntities] = useState<Entity[]>([]);
@@ -131,6 +159,8 @@ export default function GraphPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<ForceGraphMethods | undefined>(undefined);
   const hasInitialFit = useRef(false);
+  // Arrastre propio: no depende de leer píxeles del canvas (Brave los altera y el grafo no detectaba los nodos)
+  const dragRef = useRef<{ node: GraphNode & { x?: number; y?: number; fx?: number; fy?: number }; startX: number; startY: number; moved: boolean } | null>(null);
   const navigate = useNavigate();
 
   // Gráfico más corto en pantallas pequeñas
@@ -153,6 +183,7 @@ export default function GraphPage() {
       setError(error instanceof Error ? error.message : "No se pudo cargar el grafo.");
     });
   }, [loadData]);
+
 
   // Mantiene el ancho del gráfico sincronizado con su contenedor
   useEffect(() => {
@@ -206,6 +237,16 @@ export default function GraphPage() {
     // colorVersion: los colores salen de colorForType, que cambia al elegir uno nuevo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entities, relationships, colorVersion]);
+
+  // Separación entre nodos: repulsión, largo de las conexiones y colisión para que no se encimen
+  useEffect(() => {
+    const graph = graphRef.current;
+    if (!graph) return;
+    graph.d3Force("collide", collideForce(NODE_RADIUS * 2 + 6) as never);
+    (graph.d3Force("charge") as unknown as { strength?: (value: number) => void })?.strength?.(-160);
+    (graph.d3Force("link") as unknown as { distance?: (value: number) => void })?.distance?.(55);
+    graph.d3ReheatSimulation();
+  }, [graphData]);
 
   // Los datos sin procesar que se muestran en el visor de JSON
   const jsonData = useMemo(
@@ -367,6 +408,62 @@ export default function GraphPage() {
     }
   };
 
+  // Nodo visible bajo el puntero (cálculo geométrico, no por color de píxel)
+  const nodeAt = (clientX: number, clientY: number) => {
+    const canvas = containerRef.current?.querySelector("canvas");
+    const graph = graphRef.current;
+    if (!canvas || !graph) return null;
+    const rect = canvas.getBoundingClientRect();
+    const point = graph.screen2GraphCoords(clientX - rect.left, clientY - rect.top);
+    let best: (typeof graphData.nodes)[number] | null = null;
+    let bestDistance = NODE_RADIUS + 2;
+    for (const node of graphData.nodes as (GraphNode & { x?: number; y?: number })[]) {
+      if (!activeTypes.includes(node.type)) continue;
+      const distance = Math.hypot((node.x ?? 0) - point.x, (node.y ?? 0) - point.y);
+      if (distance <= bestDistance) {
+        best = node;
+        bestDistance = distance;
+      }
+    }
+    return best;
+  };
+
+  const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    const node = nodeAt(event.clientX, event.clientY);
+    if (!node) return; // fondo: el grafo se encarga (mover y zoom)
+    event.stopPropagation(); // que el grafo no lo tome como paneo
+    dragRef.current = { node, startX: event.clientX, startY: event.clientY, moved: false };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handlePointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (!drag) {
+      const id = nodeAt(event.clientX, event.clientY)?.id ?? null;
+      if (id !== hoveredId) setHoveredId(id);
+      return;
+    }
+    event.stopPropagation();
+    if (!drag.moved && Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < 4) return;
+    drag.moved = true;
+    const canvas = containerRef.current?.querySelector("canvas");
+    const graph = graphRef.current;
+    if (!canvas || !graph) return;
+    const rect = canvas.getBoundingClientRect();
+    const point = graph.screen2GraphCoords(event.clientX - rect.left, event.clientY - rect.top);
+    drag.node.fx = point.x; // fijo mientras se arrastra (y queda donde se suelta)
+    drag.node.fy = point.y;
+    graph.d3ReheatSimulation();
+  };
+
+  const handlePointerUp = (event: PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (!drag) return;
+    event.stopPropagation();
+    dragRef.current = null;
+    handleNodeClick(drag.node); // clic o arrastre: los dos seleccionan el nodo
+  };
+
   const handleConfirmDelete = async () => {
     if (!selectedEntity || isSaving) {
       return;
@@ -495,7 +592,11 @@ export default function GraphPage() {
       <Card
         ref={containerRef}
         variant="outlined"
+        onPointerDownCapture={handlePointerDown}
+        onPointerMoveCapture={handlePointerMove}
+        onPointerUpCapture={handlePointerUp}
         sx={{
+          cursor: hoveredId ? "pointer" : "grab",
           position: "relative",
           overflow: "hidden",
           minWidth: 0,
@@ -541,9 +642,14 @@ export default function GraphPage() {
             const isFocused = activeNeighborhood.has(sourceId) && activeNeighborhood.has(targetId);
             return selectedId
               ? isFocused ? "rgba(167,139,250,.72)" : "rgba(255,255,255,.045)"
-              : "rgba(255,255,255,.2)";
+              : "rgba(255,255,255,.45)";
           }}
-          linkDirectionalArrowLength={4}
+          linkWidth={1.3}
+          linkDirectionalArrowLength={5}
+          enableNodeDrag={false}
+          // Calcula la distribución antes de dibujar y se detiene rápido: así el encuadre inicial ya es el final
+          warmupTicks={80}
+          cooldownTime={3000}
           onEngineStop={() => {
             if (!hasInitialFit.current && graphData.nodes.length > 0) {
               hasInitialFit.current = true;
@@ -574,6 +680,13 @@ export default function GraphPage() {
               context.lineWidth = 2 / globalScale;
               context.stroke();
             }
+
+            // Inicial del nombre dentro del nodo: se identifica aunque no se vea el nombre
+            context.font = `bold 8px "Segoe UI", sans-serif`;
+            context.textAlign = "center";
+            context.textBaseline = "middle";
+            context.fillStyle = "#0E0D17";
+            context.fillText(graphNode.name.trim().charAt(0).toUpperCase(), node.x ?? 0, (node.y ?? 0) + 0.5);
 
             // Mantiene el grafo legible y muestra etiquetas solo al explorar un nodo.
             if (graphNode.id !== selectedId && graphNode.id !== hoveredId && globalScale < LABEL_ZOOM) {
@@ -627,17 +740,6 @@ export default function GraphPage() {
             context.fillStyle = "#B9B5D6";
             context.fillText(graphLink.type, x, y);
           }}
-          // La zona de clic cubre todo el anillo (radio 10) con margen, no solo el círculo relleno
-          nodePointerAreaPaint={(node, color, context) => {
-            context.fillStyle = color;
-            context.beginPath();
-            context.arc(node.x ?? 0, node.y ?? 0, 13, 0, 2 * Math.PI);
-            context.fill();
-          }}
-          onNodeClick={handleNodeClick}
-          // Un clic con el mouse un poco movido cuenta como arrastre: también selecciona el nodo
-          onNodeDragEnd={handleNodeClick}
-          onNodeHover={(node) => setHoveredId(node ? String(node.id) : null)}
           onBackgroundClick={() => setSelectedId(null)}
         />
 
