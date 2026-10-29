@@ -44,6 +44,7 @@ import JsonViewer from "../components/JsonViewer";
 import NodeFormDialog from "../components/NodeFormDialog";
 import {
   createEntity,
+  createRelationship,
   deleteEntity,
   getEntities,
   getRelationships,
@@ -99,6 +100,8 @@ export default function GraphPage() {
   const [formState, setFormState] = useState<FormState>(null);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isJsonOpen, setIsJsonOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<ForceGraphMethods | undefined>(undefined);
@@ -114,13 +117,16 @@ export default function GraphPage() {
         ([loadedEntities, loadedRelationships]) => {
           setEntities(loadedEntities);
           setRelationships(loadedRelationships);
+          setError(null);
         },
       ),
     [],
   );
 
   useEffect(() => {
-    loadData();
+    loadData().catch((error: unknown) => {
+      setError(error instanceof Error ? error.message : "No se pudo cargar el grafo.");
+    });
   }, [loadData]);
 
   // Mantiene el ancho del gráfico sincronizado con su contenedor
@@ -263,35 +269,63 @@ export default function GraphPage() {
   };
 
   const handleSubmitForm = async (values: EntityInput) => {
-    if (formState?.mode === "edit") {
-      await updateEntity(formState.entity.id, {
-        name: values.name,
-        type: values.type,
-      });
-    } else {
-      const createdEntity = await createEntity(values);
-      setSelectedId(createdEntity.id);
+    if (isSaving) return;
+    setIsSaving(true);
+    setError(null);
+    let savedEntity: Entity | undefined;
+    try {
+      const isEditing = formState?.mode === "edit";
+      savedEntity = isEditing
+        ? await updateEntity(formState.entity.id, { name: values.name, type: values.type })
+        : await createEntity(values);
+      setSelectedId(savedEntity.id);
+      setSearchText(savedEntity.name);
+      // The node is already saved. Close the form before adding connections so
+      // a failed relationship cannot cause an accidental duplicate on retry.
+      setFormState(null);
+      if (!isEditing) {
+        for (const targetId of values.connectedIds) {
+          await createRelationship({ sourceId: savedEntity.id, targetId, type: values.relationType });
+        }
+      }
+      await loadData();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "No se pudo guardar el nodo.";
+      if (savedEntity) {
+        await loadData().catch(() => undefined);
+        setError(`El nodo se guardó, pero no se pudo completar la operación. ${message}`);
+      } else {
+        setError(message);
+      }
+    } finally {
+      setIsSaving(false);
     }
-
-    setFormState(null);
-    await loadData();
   };
 
   const handleConfirmDelete = async () => {
-    if (!selectedEntity) {
+    if (!selectedEntity || isSaving) {
       return;
     }
 
-    await deleteEntity(selectedEntity.id);
-
-    setIsDeleteOpen(false);
-    setSelectedId(null);
-    await loadData();
+    setIsSaving(true);
+    setError(null);
+    try {
+      await deleteEntity(selectedEntity.id);
+      setIsDeleteOpen(false);
+      setSelectedId(null);
+      setSearchText("");
+      await loadData();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "No se pudo eliminar el nodo.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
     <Box>
       <Typography variant="h4">Grafo</Typography>
+      {error && !formState && !isDeleteOpen && <Alert severity="error" sx={{ my: 2 }}>{error}</Alert>}
 
       <Typography color="text.secondary" sx={{ mb: 2 }}>
         Hacé clic en un nodo para seleccionarlo: desde ahí podés abrir su nota,
@@ -661,6 +695,8 @@ export default function GraphPage() {
 
       {formState && (
         <NodeFormDialog
+          isSubmitting={isSaving}
+          error={error}
           entities={entities}
           entityToEdit={
             formState.mode === "edit" ? formState.entity : undefined
@@ -672,13 +708,14 @@ export default function GraphPage() {
 
       <Dialog
         open={isDeleteOpen}
-        onClose={() => setIsDeleteOpen(false)}
+        onClose={isSaving ? undefined : () => setIsDeleteOpen(false)}
         fullWidth
         maxWidth="xs"
       >
         <DialogTitle>Eliminar nodo</DialogTitle>
 
         <DialogContent sx={{ display: "grid", gap: 2 }}>
+          {error && <Alert severity="error">{error}</Alert>}
           <DialogContentText>
             Se va a eliminar "{selectedEntity?.name}" junto con sus{" "}
             {selectedRelationshipCount} relaciones. Esta acción no se puede
@@ -694,11 +731,12 @@ export default function GraphPage() {
         </DialogContent>
 
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setIsDeleteOpen(false)}>Cancelar</Button>
+          <Button onClick={() => setIsDeleteOpen(false)} disabled={isSaving}>Cancelar</Button>
 
           <Button
             color="error"
             variant="contained"
+            disabled={isSaving}
             onClick={handleConfirmDelete}
           >
             Eliminar

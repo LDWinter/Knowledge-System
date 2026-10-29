@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import {
   Box,
+  Alert,
   Button,
   Card,
   CardContent,
@@ -20,6 +21,7 @@ import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import AddIcon from "@mui/icons-material/Add";
 
 import { getEntities, getRelationships, getSources } from "../services/api";
+import { formatDate } from "../services/format";
 import { entityTypeColors } from "../theme";
 import type { Entity, EntityType, Relationship, Source } from "../types";
 
@@ -37,6 +39,7 @@ export default function DashboardPage() {
   const [entities, setEntities] = useState<Entity[]>([]);
   const [relationships, setRelationships] = useState<Relationship[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([getSources(), getEntities(), getRelationships()]).then(
@@ -44,14 +47,17 @@ export default function DashboardPage() {
         setSources(loadedSources);
         setEntities(loadedEntities);
         setRelationships(loadedRelationships);
-        setIsLoading(false);
       },
-    );
+    ).catch((error: unknown) => {
+      setError(error instanceof Error ? error.message : "No se pudo cargar el inicio.");
+    }).finally(() => setIsLoading(false));
   }, []);
 
   if (isLoading) {
     return <CircularProgress />;
   }
+
+  if (error) return <Alert severity="error">{error}</Alert>;
 
   const stats: Stat[] = [
     {
@@ -266,7 +272,7 @@ export default function DashboardPage() {
                       </Typography>
 
                       <Typography variant="caption" color="text.secondary">
-                        {source.lastSync}
+                        {formatDate(source.lastSync)}
                       </Typography>
                     </Box>
 

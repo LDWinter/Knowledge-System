@@ -20,6 +20,8 @@ type NodeFormDialogProps = {
   entities: Entity[];
   // Si no está definido, el cuadro de diálogo funciona en modo "creación"
   entityToEdit?: Entity;
+  isSubmitting?: boolean;
+  error?: string | null;
   onClose: () => void;
   onSubmit: (values: EntityInput) => void;
 };
@@ -27,6 +29,8 @@ type NodeFormDialogProps = {
 export default function NodeFormDialog({
   entities,
   entityToEdit,
+  isSubmitting = false,
+  error,
   onClose,
   onSubmit,
 }: NodeFormDialogProps) {
@@ -42,7 +46,7 @@ export default function NodeFormDialog({
   const isValid = name.trim() !== "";
 
   const handleSubmit = () => {
-    if (!isValid) {
+    if (!isValid || isSubmitting) {
       return;
     }
 
@@ -55,10 +59,11 @@ export default function NodeFormDialog({
   };
 
   return (
-    <Dialog open onClose={onClose} fullWidth maxWidth="sm">
+    <Dialog open onClose={isSubmitting ? undefined : onClose} fullWidth maxWidth="sm">
       <DialogTitle>{isEditing ? "Editar nodo" : "Nuevo nodo"}</DialogTitle>
 
       <DialogContent sx={{ display: "grid", gap: 2, pt: 1 }}>
+        {error && <Alert severity="error">{error}</Alert>}
         {isEditing && entityToEdit.source !== "Manual" && (
           <Alert severity="info">
             Este nodo viene de la fuente "{entityToEdit.source}". En el sistema
@@ -114,10 +119,10 @@ export default function NodeFormDialog({
       </DialogContent>
 
       <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button onClick={onClose}>Cancelar</Button>
+        <Button onClick={onClose} disabled={isSubmitting}>Cancelar</Button>
 
-        <Button variant="contained" disabled={!isValid} onClick={handleSubmit}>
-          {isEditing ? "Guardar" : "Crear nodo"}
+        <Button variant="contained" disabled={!isValid || isSubmitting} onClick={handleSubmit}>
+          {isSubmitting ? "Guardando…" : isEditing ? "Guardar" : "Crear nodo"}
         </Button>
       </DialogActions>
     </Dialog>

@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import {
   Box,
+  Alert,
   Button,
   Typography,
   Card,
@@ -23,20 +24,24 @@ export default function EntityPage() {
   const [entities, setEntities] = useState<Entity[]>([]);
   const [relationships, setRelationships] = useState<Relationship[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([getEntities(), getRelationships()]).then(
       ([loadedEntities, loadedRelationships]) => {
         setEntities(loadedEntities);
         setRelationships(loadedRelationships);
-        setIsLoading(false);
       },
-    );
+    ).catch((error: unknown) => {
+      setError(error instanceof Error ? error.message : "No se pudo cargar la entidad.");
+    }).finally(() => setIsLoading(false));
   }, []);
 
   if (isLoading) {
     return <CircularProgress />;
   }
+
+  if (error) return <Alert severity="error">{error}</Alert>;
 
   const entity = entities.find((item) => item.id === id);
 

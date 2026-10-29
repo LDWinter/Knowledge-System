@@ -2,7 +2,7 @@
 
 Prototipo del frontend de un sistema de gestión de conocimiento empresarial. La idea del sistema es reunir información de distintas fuentes (Excel, bases SQL, Trello, ERP, CRM, Power BI), normalizarla y mostrar cómo se relacionan sus entidades (clientes, productos, pedidos) en un grafo y en notas navegables, al estilo de Obsidian.
 
-> **Estado actual:** prototipo visual. Todas las pantallas funcionan con **datos de ejemplo** (mock). Todavía no hay conexión con un backend.
+> **Estado actual:** frontend conectado a la API Flask + SQLite de `LDWinter/bd-desde-cero`. Incluye login, sesión con cookie y cambios de entidades persistidos en la base. La importación de archivos y los conectores externos siguen pendientes.
 
 ## Tecnologías
 
@@ -53,11 +53,31 @@ npm -v
 
 ## Cómo levantar el proyecto
 
+Primero levantá el backend en `http://127.0.0.1:5001`, siguiendo su README. Se usa 5001 para evitar el puerto 5000 que puede ocupar macOS. Si lo tenés clonado dentro de esta carpeta como `bd-desde-cero/`:
+
+```bash
+cd bd-desde-cero
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r back/requirements.txt
+python3 back/semilla.py back/base.db
+cd back
+flask --app app run --host 127.0.0.1 --port 5001
+```
+
+El backend es un repositorio separado; no se incluye en los commits de este frontend. También podés clonarlo en otra carpeta. Las credenciales de demostración están en su documentación (`docs/BACKEND.md`). El contrato acordado devuelve `204` en logout y usa una sola ruta de historial.
+
+En otra terminal, desde la raíz del frontend:
+
 ```bash
 npm run dev
 ```
 
-Se abre en <http://localhost:5173>. Si ese puerto está ocupado, Vite elige otro y lo muestra en la terminal.
+Se abre en <http://localhost:5173>. Si ese puerto está ocupado, Vite elige otro y lo muestra en la terminal. Vite reenvía `/api` al backend tanto en desarrollo como en `npm run preview`. En un despliegue, el servidor debe configurar ese mismo reenvío: `vite.config.ts` no configura el hosting.
+
+Si tu backend usa otro puerto, configurá el destino al iniciar Vite: `API_TARGET=http://127.0.0.1:5000 npm run dev`.
+
+Al entrar sin sesión se muestra `/login`. Una vez autenticado, se vuelve a la ruta que se intentaba abrir. La sesión se recupera al recargar y se cierra desde la barra superior. Si vence durante una escritura, la app vuelve al login. Los errores de conexión se muestran en pantalla.
 
 ### Otros comandos
 
@@ -74,6 +94,7 @@ Antes de subir cambios conviene correr `npm run build` y `npm run lint`: detecta
 
 | Ruta                    | Pantalla       | Qué muestra                                                                        |
 | ----------------------- | -------------- | ---------------------------------------------------------------------------------- |
+| `/login`                | Iniciar sesión | Email y contraseña; muestra los errores que devuelve la API                         |
 | `/`                     | Inicio         | Banner de bienvenida, resumen del sistema, entidades por tipo y actividad reciente |
 | `/fuentes`              | Fuentes        | Lista de fuentes con su estado; permite sincronizar y eliminar                     |
 | `/fuentes/nueva`        | Agregar fuente | Selector de tipo de fuente y formulario o carga de archivo                         |
@@ -102,7 +123,8 @@ knowledge-system/
 │   │   ├── GraphPage.tsx
 │   │   └── EntityPage.tsx
 │   ├── services/
-│   │   └── api.ts            # Acceso a los datos (hoy devuelve los mocks)
+│   │   ├── api.ts            # HTTP a Flask, sesión y errores
+│   │   └── format.ts         # Presentación local de fechas ISO
 │   ├── App.tsx               # Definición de rutas
 │   ├── main.tsx              # Punto de entrada
 │   ├── theme.ts              # Tema de MUI y colores por tipo de entidad
@@ -112,7 +134,7 @@ knowledge-system/
 └── vite.config.ts
 ```
 
-## Datos de ejemplo y futura integración con el backend
+## Datos y contrato con el backend
 
 Todas las pantallas obtienen sus datos a través de `src/services/api.ts`:
 
@@ -122,9 +144,9 @@ getEntities();
 getRelationships();
 ```
 
-Hoy esas funciones devuelven los datos de `src/mocks/data.ts` con una pequeña demora simulada. Los cambios del prototipo se guardan en `localStorage` (entidades, relaciones y fuentes), así que sobreviven al recargar el navegador. Si `localStorage` no está disponible, la aplicación sigue funcionando con los datos en memoria.
+Estas funciones hacen solicitudes HTTP a `/api`. Los datos se guardan en SQLite, y la semilla del backend permite iniciar con los ejemplos conocidos. `src/mocks/data.ts` se conserva como referencia: ya no alimenta las pantallas. Los datos viejos de `localStorage` no se migran ni se usan como respaldo si la API falla.
 
-Cuando el backend esté disponible, **solo hay que cambiar el interior de estas funciones** (por ejemplo, con `fetch` a la API). Las pantallas no se modifican.
+La API devuelve fechas ISO o `null`; la interfaz las formatea en español argentino. Las escrituras requieren la cookie de sesión. Crear un nodo y sus conexiones usa solicitudes separadas; si una conexión falla, se informa que el nodo ya fue guardado. Al cambiar de tipo, se conserva la selección usando el ID que devuelve la API. El borrado de entidades es lógico y sus relaciones dejan de mostrarse.
 
 Los tipos de datos están definidos en `src/types.ts`:
 
@@ -138,24 +160,24 @@ Los tipos de datos están definidos en `src/types.ts`:
 
 - Navegación completa, diseño oscuro y diseño responsive.
 - Búsqueda global de entidades y fuentes desde la barra superior.
-- Persistencia local de los cambios de demostración entre recargas.
-- Listado, sincronización y eliminación de fuentes (sobre datos de ejemplo).
+- Login, recuperación y cierre de sesión con cookie.
+- Lectura y cambios de entidades y relaciones a través de Flask + SQLite.
+- Listado y filtro de fuentes reales; sincronización y eliminación deshabilitadas hasta que exista soporte en la API.
 - Selección de tipo de fuente y elección de archivo Excel/CSV.
 - Grafo con filtros, zoom, nombres de nodos y navegación a cada entidad.
 - Notas en Markdown con enlaces entre entidades.
 
 **Todavía no implementado**
 
-- Conexión con el backend: el archivo elegido no se envía y la vista previa muestra datos fijos.
-- Buscador: la barra superior es solo visual.
+- Importación real: el archivo elegido no se envía y la vista previa muestra datos fijos, identificados como ejemplo. El botón de importar está deshabilitado.
 - Configuración de entidades al importar una fuente.
 - Detección y revisión de entidades duplicadas.
 - Conectores reales (SQL, Trello, API externa, ERP, CRM y Power BI).
 
 ## Próximos pasos
 
-1. Integrar una primera funcionalidad con el backend: carga de un archivo Excel/CSV y su vista previa con datos reales.
-2. Agregar las pantallas de búsqueda y de duplicados.
+1. Implementar la carga de un archivo Excel/CSV y su vista previa con datos reales.
+2. Agregar la revisión de duplicados.
 3. Conectar el resto de las fuentes.
 
 ## Convenciones

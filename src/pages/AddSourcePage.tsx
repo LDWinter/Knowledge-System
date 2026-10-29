@@ -2,6 +2,7 @@ import { useState, type ChangeEvent, type DragEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Box,
+  Alert,
   Typography,
   Card,
   CardActionArea,
@@ -80,6 +81,9 @@ export default function AddSourcePage() {
   return (
     <Box sx={{ maxWidth: 820 }}>
       <Typography variant="h4">Agregar fuente</Typography>
+      <Alert severity="info" sx={{ my: 2 }}>
+        La importación de archivos y las nuevas conexiones todavía no están disponibles.
+      </Alert>
 
       <Typography color="text.secondary" sx={{ mb: 3 }}>
         Elegí de dónde vienen los datos.

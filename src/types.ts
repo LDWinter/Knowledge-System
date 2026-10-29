@@ -3,7 +3,7 @@ export type Source = {
     name: string;
     type: string;
     status: "ok" | "error";
-    lastSync: string;
+    lastSync: string | null;
     recordCount: number;
 };
 
@@ -28,4 +28,11 @@ export type EntityInput = {
     type: EntityType;
     connectedIds: string[];
     relationType: string;
+};
+
+export type User = {
+    id: number;
+    email: string;
+    nombre: string | null;
+    rol: "admin" | "editor" | "lector";
 };

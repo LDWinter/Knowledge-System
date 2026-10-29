@@ -12,8 +12,10 @@ import {
   Toolbar,
   InputBase,
   Avatar,
+  Alert,
   IconButton,
   Paper,
+  Tooltip,
   useMediaQuery,
   useTheme,
 } from "@mui/material";
@@ -23,10 +25,11 @@ import DashboardIcon from "@mui/icons-material/Dashboard";
 import StorageIcon from "@mui/icons-material/Storage";
 import HubIcon from "@mui/icons-material/Hub";
 import SearchIcon from "@mui/icons-material/Search";
+import LogoutIcon from "@mui/icons-material/Logout";
 
 import Footer from "./Footer";
 import { getEntities, getSources } from "../services/api";
-import type { Entity, Source } from "../types";
+import type { Entity, Source, User } from "../types";
 
 const DRAWER_WIDTH = 240;
 
@@ -44,7 +47,9 @@ const navigationItems = [
   { to: "/grafo", label: "Grafo", icon: <HubIcon /> },
 ];
 
-export default function Layout() {
+type LayoutProps = { user: User; onLogout: () => Promise<void> };
+
+export default function Layout({ user, onLogout }: LayoutProps) {
   const { pathname } = useLocation();
   const theme = useTheme();
   const navigate = useNavigate();
@@ -55,11 +60,19 @@ export default function Layout() {
   const [highlightedResultIndex, setHighlightedResultIndex] = useState(0);
   const [searchEntities, setSearchEntities] = useState<Entity[]>([]);
   const [searchSources, setSearchSources] = useState<Source[]>([]);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [logoutError, setLogoutError] = useState<string | null>(null);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const refreshSearchData = useCallback(() => {
     Promise.all([getEntities(), getSources()]).then(([loadedEntities, loadedSources]) => {
       setSearchEntities(loadedEntities);
       setSearchSources(loadedSources);
+      setSearchError(null);
+    }).catch((error: unknown) => {
+      setSearchEntities([]);
+      setSearchSources([]);
+      setSearchError(error instanceof Error ? error.message : "No se pudo realizar la búsqueda.");
     });
   }, []);
 
@@ -127,6 +140,18 @@ export default function Layout() {
   };
 
   const closeMobileMenu = () => setIsMobileMenuOpen(false);
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    setLogoutError(null);
+    try {
+      await onLogout();
+    } catch (error) {
+      setLogoutError(error instanceof Error ? error.message : "No se pudo cerrar la sesión.");
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
 
   const drawerContent = (
     <>
@@ -303,7 +328,11 @@ export default function Layout() {
                     listStyle: "none",
                   }}
                 >
-                  {searchResults.length ? (
+                  {searchError ? (
+                    <Typography role="alert" sx={{ px: 1.5, py: 2 }} variant="body2" color="error">
+                      {searchError}
+                    </Typography>
+                  ) : searchResults.length ? (
                     searchResults.map((result, index) => (
                       <ListItemButton
                         key={result.key}
@@ -348,6 +377,7 @@ export default function Layout() {
             <Box sx={{ flexGrow: 1, display: { xs: "none", sm: "block" } }} />
 
             <Avatar
+              title={user.nombre || user.email}
               sx={{
                 bgcolor: "primary.main",
                 width: 34,
@@ -355,12 +385,18 @@ export default function Layout() {
                 display: { xs: "none", sm: "flex" },
               }}
             >
-              U
+              {(user.nombre || user.email).slice(0, 1).toUpperCase()}
             </Avatar>
+            <Tooltip title="Cerrar sesión">
+              <IconButton aria-label="Cerrar sesión" onClick={handleLogout} disabled={isLoggingOut}>
+                <LogoutIcon />
+              </IconButton>
+            </Tooltip>
           </Toolbar>
         </AppBar>
 
         <Box component="main" sx={{ flexGrow: 1, p: { xs: 2, md: 4 } }}>
+          {logoutError && <Alert severity="error" sx={{ mb: 2 }}>{logoutError}</Alert>}
           <Outlet />
         </Box>
 

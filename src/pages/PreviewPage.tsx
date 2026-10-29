@@ -41,13 +41,12 @@ export default function PreviewPage() {
     navigate("/fuentes/nueva");
   };
 
-  const handleImport = () => {
-    navigate("/fuentes");
-  };
-
   return (
     <Box>
       <Typography variant="h4">Vista previa</Typography>
+      <Alert severity="info" sx={{ my: 2 }}>
+        Esta es una vista previa de ejemplo. La importación todavía no está disponible.
+      </Alert>
 
       <Typography color="text.secondary" sx={{ mb: 3 }}>
         clientes_2025.xlsx · primeras 5 filas de 120
@@ -145,7 +144,7 @@ export default function PreviewPage() {
       >
         <Button onClick={handleBack}>Volver</Button>
 
-        <Button variant="contained" onClick={handleImport}>
+        <Button variant="contained" disabled>
           Importar 118 registros
         </Button>
       </Box>

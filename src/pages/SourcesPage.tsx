@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Box,
+  Alert,
   Typography,
   Button,
   Card,
@@ -22,19 +23,25 @@ import AddIcon from "@mui/icons-material/Add";
 import SyncIcon from "@mui/icons-material/Sync";
 import DeleteIcon from "@mui/icons-material/Delete";
 
-import { deleteSource, getSources, synchronizeSource } from "../services/api";
+import { getSources } from "../services/api";
+import { formatDate } from "../services/format";
 import type { Source } from "../types";
 
 export default function SourcesPage() {
   const [sources, setSources] = useState<Source[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const sourceSearch = searchParams.get("buscar") ?? "";
 
   const navigate = useNavigate();
 
   useEffect(() => {
-    getSources().then(setSources);
+    getSources().then(setSources).catch((error: unknown) => {
+      setError(error instanceof Error ? error.message : "No se pudieron cargar las fuentes.");
+    });
   }, []);
+
+  if (error) return <Alert severity="error">{error}</Alert>;
 
   if (!sources) {
     return <CircularProgress />;
@@ -68,16 +75,6 @@ export default function SourcesPage() {
 
   const handleAddSource = () => {
     navigate("/fuentes/nueva");
-  };
-
-  const handleSyncSource = async (sourceId: number) => {
-    await synchronizeSource(sourceId);
-    setSources(await getSources());
-  };
-
-  const handleDeleteSource = async (sourceId: number) => {
-    await deleteSource(sourceId);
-    setSources(await getSources());
   };
 
   const handleSearchChange = (value: string) => {
@@ -191,19 +188,19 @@ export default function SourcesPage() {
                   />
                 </TableCell>
 
-                <TableCell>{source.lastSync}</TableCell>
+                <TableCell>{formatDate(source.lastSync)}</TableCell>
 
                 <TableCell align="right">
-                  <Tooltip title="Sincronizar">
-                    <IconButton onClick={() => handleSyncSource(source.id)}>
+                  <Tooltip title="La sincronización todavía no está disponible">
+                    <span><IconButton disabled aria-label="Sincronizar fuente">
                       <SyncIcon />
-                    </IconButton>
+                    </IconButton></span>
                   </Tooltip>
 
-                  <Tooltip title="Eliminar">
-                    <IconButton onClick={() => handleDeleteSource(source.id)}>
+                  <Tooltip title="La eliminación de fuentes todavía no está disponible">
+                    <span><IconButton disabled aria-label="Eliminar fuente">
                       <DeleteIcon />
-                    </IconButton>
+                    </IconButton></span>
                   </Tooltip>
                 </TableCell>
               </TableRow>
