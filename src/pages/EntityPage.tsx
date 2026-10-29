@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import EditIcon from "@mui/icons-material/Edit";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import ReactMarkdown from "react-markdown";
 import {
   Box,
@@ -150,6 +151,10 @@ export default function EntityPage() {
       }}
     >
       <Box>
+        <Button component={Link} to="/grafo" state={{ select: entity.id }} startIcon={<ArrowBackIcon />} sx={{ mb: 2 }}>
+          Volver al grafo
+        </Button>
+        <br />
         <Chip
           label={entity.type}
           size="small"

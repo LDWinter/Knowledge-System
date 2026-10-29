@@ -8,7 +8,7 @@ import {
   type PointerEvent,
   type ReactNode,
 } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import ForceGraph2D, { type ForceGraphMethods } from "react-force-graph-2d";
 import {
   Autocomplete,
@@ -46,6 +46,7 @@ import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
 import LinkOffIcon from "@mui/icons-material/LinkOff";
 import AddLinkIcon from "@mui/icons-material/AddLink";
+import DescriptionIcon from "@mui/icons-material/Description";
 
 import JsonViewer from "../components/JsonViewer";
 import NodeHistory from "../components/NodeHistory";
@@ -162,6 +163,13 @@ export default function GraphPage() {
   // Arrastre propio: no depende de leer píxeles del canvas (Brave los altera y el grafo no detectaba los nodos)
   const dragRef = useRef<{ node: GraphNode & { x?: number; y?: number; fx?: number; fy?: number }; startX: number; startY: number; moved: boolean } | null>(null);
   const navigate = useNavigate();
+  // Al volver desde una nota, se llega con ese nodo seleccionado (state.select = id)
+  const selectOnArrival = (useLocation().state as { select?: string } | null)?.select;
+  const [arrivalDone, setArrivalDone] = useState(false);
+  if (!arrivalDone && selectOnArrival && entities.some((entity) => entity.id === selectOnArrival)) {
+    setArrivalDone(true);
+    setSelectedId(selectOnArrival);
+  }
 
   // Gráfico más corto en pantallas pequeñas
   const graphHeight = graphWidth < 600 ? 380 : 560;
@@ -836,9 +844,19 @@ export default function GraphPage() {
             </IconButton>
           </Box>
 
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
             Fuente: {selectedEntity.source}
           </Typography>
+
+          <Button
+            variant="contained"
+            fullWidth
+            startIcon={<DescriptionIcon />}
+            onClick={() => navigate(`/entidad/${encodeURIComponent(selectedEntity.id)}`)}
+            sx={{ mb: 1 }}
+          >
+            Ver nota completa
+          </Button>
 
           <Tabs value={panelTab} onChange={(_, value: number) => setPanelTab(value)} sx={{ mb: 2 }}>
             <Tab label="Detalles" />
@@ -956,9 +974,6 @@ export default function GraphPage() {
 
           <Divider sx={{ my: 1.5 }} />
           <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-            <Button size="small" onClick={() => navigate(`/entidad/${selectedEntity.id}`)}>
-              Ver nota
-            </Button>
             <Tooltip title="Editar">
               <IconButton
                 size="small"
