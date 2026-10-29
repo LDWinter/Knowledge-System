@@ -38,6 +38,15 @@ export type User = {
     rol: "admin" | "editor" | "lector";
 };
 
+// GET /api/entities/<id>/history: "antes"/"despues" son fotos de la entidad o de la relación
+export type HistoryEntry = {
+    accion: string;
+    usuario: string | null;
+    antes: Record<string, unknown> | null;
+    despues: Record<string, unknown> | null;
+    fecha: string;
+};
+
 // POST /api/import: los ids de entities son referencias locales del archivo
 export type ImportPayload = {
     replace?: boolean;

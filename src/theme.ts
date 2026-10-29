@@ -2,7 +2,27 @@ import { createTheme } from "@mui/material";
 
 const COLORS = ["#8B6CFF", "#2DD4BF", "#FBA94B", "#FF6B6B", "#4DABF7", "#51CF66", "#FCC419", "#FF922B", "#9775FA", "#69DB7C"];
 
+// Colores elegidos por el usuario para cada tipo (se guardan en este navegador)
+// shortcut: localStorage es por navegador; si hace falta compartirlos entre usuarios, guardarlos en el back
+const COLORS_KEY = "knowledge-system:type-colors";
+let customColors: Record<string, string> = {};
+try {
+  customColors = JSON.parse(localStorage.getItem(COLORS_KEY) ?? "{}");
+} catch {
+  customColors = {};
+}
+
+export function setTypeColor(type: string, color: string) {
+  customColors = { ...customColors, [type]: color };
+  try {
+    localStorage.setItem(COLORS_KEY, JSON.stringify(customColors));
+  } catch {
+    // sin almacenamiento, el color vale solo hasta recargar
+  }
+}
+
 export function colorForType(type: string): string {
+  if (customColors[type]) return customColors[type];
   let hash = 0;
   for (let i = 0; i < type.length; i++) {
     hash = type.charCodeAt(i) + ((hash << 5) - hash);

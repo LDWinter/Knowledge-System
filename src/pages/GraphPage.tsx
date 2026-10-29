@@ -4,6 +4,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ChangeEvent,
   type ReactNode,
 } from "react";
 import { useNavigate } from "react-router-dom";
@@ -22,6 +23,8 @@ import {
   DialogTitle,
   Divider,
   Drawer,
+  Tab,
+  Tabs,
   IconButton,
   List,
   ListItemButton,
@@ -41,6 +44,7 @@ import DataObjectIcon from "@mui/icons-material/DataObject";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
 
 import JsonViewer from "../components/JsonViewer";
+import NodeHistory from "../components/NodeHistory";
 import NodeFormDialog from "../components/NodeFormDialog";
 import {
   createEntity,
@@ -50,7 +54,7 @@ import {
   getRelationships,
   updateEntity,
 } from "../services/api";
-import { colorForType } from "../theme";
+import { colorForType, setTypeColor } from "../theme";
 import type { Entity, EntityInput, EntityType, Relationship } from "../types";
 
 type GraphNode = {
@@ -109,6 +113,8 @@ export default function GraphPage() {
   const [formState, setFormState] = useState<FormState>(null);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isJsonOpen, setIsJsonOpen] = useState(false);
+  const [panelTab, setPanelTab] = useState(0);
+  const [colorVersion, setColorVersion] = useState(0); // sube al cambiar un color, para redibujar // 0 Detalles, 1 Historial, 2 JSON
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -187,7 +193,9 @@ export default function GraphPage() {
     });
 
     return { nodes, links };
-  }, [entities, relationships]);
+    // colorVersion: los colores salen de colorForType, que cambia al elegir uno nuevo
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entities, relationships, colorVersion]);
 
   // Los datos sin procesar que se muestran en el visor de JSON
   const jsonData = useMemo(
@@ -369,17 +377,31 @@ export default function GraphPage() {
             const isActive = activeTypes.includes(type);
 
             return (
-              <Chip
-                key={type}
-                label={type}
-                onClick={() => toggleEntityType(type)}
-                variant={isActive ? "filled" : "outlined"}
-                sx={{
-                  bgcolor: isActive ? colorForType(type) : undefined,
-                  color: isActive ? "#0E0D17" : undefined,
-                  fontWeight: 600,
-                }}
-              />
+              <Box key={type} sx={{ display: "inline-flex", alignItems: "center", gap: 0.5 }}>
+                <Chip
+                  label={type}
+                  onClick={() => toggleEntityType(type)}
+                  variant={isActive ? "filled" : "outlined"}
+                  sx={{
+                    bgcolor: isActive ? colorForType(type) : undefined,
+                    color: isActive ? "#0E0D17" : undefined,
+                    fontWeight: 600,
+                  }}
+                />
+                <Tooltip title={`Color de ${type}`}>
+                  <Box
+                    component="input"
+                    type="color"
+                    aria-label={`Color de ${type}`}
+                    value={colorForType(type)}
+                    onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                      setTypeColor(type, event.target.value);
+                      setColorVersion((version) => version + 1);
+                    }}
+                    sx={{ width: 22, height: 22, p: 0, border: 0, bgcolor: "transparent", cursor: "pointer" }}
+                  />
+                </Tooltip>
+              </Box>
             );
           })}
           {activeTypes.length < entityTypes.length && (
@@ -415,9 +437,7 @@ export default function GraphPage() {
       <Box
         sx={{
           display: "grid",
-          gridTemplateColumns: selectedEntity
-            ? { xs: "1fr", lg: "minmax(0, 1fr) 300px" }
-            : "1fr",
+          gridTemplateColumns: "1fr",
           alignItems: "start",
           gap: 2,
         }}
@@ -612,8 +632,24 @@ export default function GraphPage() {
         </Box>
       </Card>
 
+      {/* Panel lateral del nodo seleccionado: no bloquea el grafo (variant persistent) */}
+      <Drawer
+        anchor="right"
+        variant="persistent"
+        open={selectedEntity !== undefined}
+        sx={{
+          "& .MuiDrawer-paper": {
+            width: { xs: "100%", sm: 380 },
+            p: 2.5,
+            pt: "calc(env(safe-area-inset-top, 0px) + 80px)",
+            bgcolor: "background.default",
+            borderLeft: 1,
+            borderColor: "divider",
+          },
+        }}
+      >
       {selectedEntity && (
-        <Card variant="outlined" sx={{ p: 2.5, alignSelf: "start" }}>
+        <>
           <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1, mb: 1 }}>
             <Box sx={{ flexGrow: 1, minWidth: 0 }}>
               <Chip
@@ -639,11 +675,24 @@ export default function GraphPage() {
             </IconButton>
           </Box>
 
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
             Fuente: {selectedEntity.source}
           </Typography>
 
-          <Divider sx={{ mb: 1.5 }} />
+          <Tabs value={panelTab} onChange={(_, value: number) => setPanelTab(value)} sx={{ mb: 2 }}>
+            <Tab label="Detalles" />
+            <Tab label="Historial" />
+            <Tab label="JSON" />
+          </Tabs>
+
+          {panelTab === 1 && <NodeHistory entity={selectedEntity} entities={entities} />}
+          {panelTab === 2 && (
+            <JsonViewer
+              data={{ ...selectedEntity, connections: [...outgoingRelationships, ...incomingRelationships] }}
+              fileName={`${selectedEntity.id}.json`}
+            />
+          )}
+          {panelTab === 0 && (<>
           <Typography variant="subtitle2" sx={{ mb: 1 }}>Datos</Typography>
           <Box sx={{ display: "grid", gap: 1, mb: 2 }}>
             {Object.entries(selectedEntity.data).map(([key, value]) => (
@@ -726,8 +775,10 @@ export default function GraphPage() {
               </IconButton>
             </Tooltip>
           </Box>
-        </Card>
+          </>)}
+        </>
       )}
+      </Drawer>
       </Box>
 
       {formState && (

@@ -1,4 +1,4 @@
-import type { Entity, EntityInput, ImportPayload, ImportResult, Relationship, Source, User } from "../types";
+import type { Entity, EntityInput, HistoryEntry, ImportPayload, ImportResult, Relationship, Source, User } from "../types";
 
 export const SESSION_EXPIRED_EVENT = "knowledge-system:session-expired";
 
@@ -60,6 +60,9 @@ export const updateEntity = (id: string, changes: Pick<EntityInput, "name" | "ty
 
 export const deleteEntity = (id: string) =>
   request<void>(`/entities/${encodeURIComponent(id)}`, { method: "DELETE" });
+
+export const getHistory = (id: string) =>
+  request<HistoryEntry[]>(`/entities/${encodeURIComponent(id)}/history`);
 
 export const importData = (payload: ImportPayload) => request<ImportResult>("/import", {
   method: "POST",
