@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Box,
@@ -23,6 +23,7 @@ import AddIcon from "@mui/icons-material/Add";
 import SyncIcon from "@mui/icons-material/Sync";
 import DeleteIcon from "@mui/icons-material/Delete";
 
+import DataActions from "../components/DataActions";
 import { getSources } from "../services/api";
 import { formatDate } from "../services/format";
 import type { Source } from "../types";
@@ -35,11 +36,13 @@ export default function SourcesPage() {
 
   const navigate = useNavigate();
 
-  useEffect(() => {
+  const loadSources = useCallback(() => {
     getSources().then(setSources).catch((error: unknown) => {
       setError(error instanceof Error ? error.message : "No se pudieron cargar las fuentes.");
     });
   }, []);
+
+  useEffect(loadSources, [loadSources]);
 
   if (error) return <Alert severity="error">{error}</Alert>;
 
@@ -107,6 +110,7 @@ export default function SourcesPage() {
         >
           Agregar fuente
         </Button>
+        <DataActions onChange={loadSources} />
       </Box>
 
       <Box

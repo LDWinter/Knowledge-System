@@ -50,7 +50,7 @@ import {
   getRelationships,
   updateEntity,
 } from "../services/api";
-import { entityTypeColors } from "../theme";
+import { colorForType } from "../theme";
 import type { Entity, EntityInput, EntityType, Relationship } from "../types";
 
 type GraphNode = {
@@ -74,7 +74,6 @@ type ZoomAction = "in" | "out" | "fit";
 
 type FormState = { mode: "create" } | { mode: "edit"; entity: Entity } | null;
 
-const entityTypes: EntityType[] = ["Cliente", "Producto", "Pedido"];
 
 const ZOOM_FACTOR = 1.4;
 const ZOOM_DURATION_MS = 300;
@@ -89,10 +88,20 @@ const zoomButtons: { label: string; icon: ReactNode; action: ZoomAction }[] = [
   },
 ];
 
+// Zoom a partir del cual se ven los nombres de todos los nodos y el tipo de cada conexión
+const LABEL_ZOOM = 1.6;
+const LINK_LABEL_ZOOM = 2.2;
+
 export default function GraphPage() {
   const [entities, setEntities] = useState<Entity[]>([]);
   const [relationships, setRelationships] = useState<Relationship[]>([]);
-  const [activeTypes, setActiveTypes] = useState<EntityType[]>(entityTypes);
+  const entityTypes = useMemo(() => Array.from(new Set(entities.map((e) => e.type))).sort(), [entities]);
+  // Se guardan los tipos OCULTOS: así un tipo nuevo aparece visible sin tocar los filtros
+  const [hiddenTypes, setHiddenTypes] = useState<EntityType[]>([]);
+  const activeTypes = useMemo(
+    () => entityTypes.filter((type) => !hiddenTypes.includes(type)),
+    [entityTypes, hiddenTypes],
+  );
   const [graphWidth, setGraphWidth] = useState(800);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -154,7 +163,7 @@ export default function GraphPage() {
     const nodes: GraphNode[] = entities.map((entity) => ({
       id: entity.id,
       name: entity.name,
-      color: entityTypeColors[entity.type],
+      color: colorForType(entity.type),
       type: entity.type,
     }));
 
@@ -209,10 +218,10 @@ export default function GraphPage() {
 
   const toggleEntityType = (type: EntityType) => {
     const isActive = activeTypes.includes(type);
-    setActiveTypes((currentTypes) =>
+    setHiddenTypes((currentTypes) =>
       isActive
-        ? currentTypes.filter((currentType) => currentType !== type)
-        : [...currentTypes, type],
+        ? [...currentTypes, type]
+        : currentTypes.filter((currentType) => currentType !== type),
     );
     if (isActive && selectedEntity?.type === type) {
       setSelectedId(null);
@@ -239,9 +248,7 @@ export default function GraphPage() {
 
     setSelectedId(entity.id);
     setSearchText(entity.name);
-    setActiveTypes((current) =>
-      current.includes(entity.type) ? current : [...current, entity.type],
-    );
+    setHiddenTypes((current) => current.filter((type) => type !== entity.type));
 
     const node = graphData.nodes.find((item) => item.id === entity.id);
     if (node?.x !== undefined && node.y !== undefined) {
@@ -276,7 +283,7 @@ export default function GraphPage() {
     try {
       const isEditing = formState?.mode === "edit";
       savedEntity = isEditing
-        ? await updateEntity(formState.entity.id, { name: values.name, type: values.type })
+        ? await updateEntity(formState.entity.id, { name: values.name, type: values.type, data: values.data })
         : await createEntity(values);
       setSelectedId(savedEntity.id);
       setSearchText(savedEntity.name);
@@ -368,7 +375,7 @@ export default function GraphPage() {
                 onClick={() => toggleEntityType(type)}
                 variant={isActive ? "filled" : "outlined"}
                 sx={{
-                  bgcolor: isActive ? entityTypeColors[type] : undefined,
+                  bgcolor: isActive ? colorForType(type) : undefined,
                   color: isActive ? "#0E0D17" : undefined,
                   fontWeight: 600,
                 }}
@@ -379,7 +386,7 @@ export default function GraphPage() {
             <Button
               size="small"
               startIcon={<RestartAltIcon />}
-              onClick={() => setActiveTypes(entityTypes)}
+              onClick={() => setHiddenTypes([])}
             >
               Restablecer filtros
             </Button>
@@ -499,7 +506,7 @@ export default function GraphPage() {
             }
 
             // Mantiene el grafo legible y muestra etiquetas solo al explorar un nodo.
-            if (graphNode.id !== selectedId && graphNode.id !== hoveredId) {
+            if (graphNode.id !== selectedId && graphNode.id !== hoveredId && globalScale < LABEL_ZOOM) {
               return;
             }
 
@@ -520,6 +527,36 @@ export default function GraphPage() {
             context.fillStyle = "#E8E7F5";
             context.fillText(graphNode.name, labelX, labelY);
           }}
+          linkCanvasObjectMode={() => "after"}
+          linkCanvasObject={(link, context, globalScale) => {
+            const graphLink = link as unknown as {
+              source: { x?: number; y?: number };
+              target: { x?: number; y?: number };
+              sourceType: EntityType;
+              targetType: EntityType;
+              type: string;
+            };
+            // Las etiquetas de las conexiones solo se ven con zoom cercano
+            if (
+              globalScale < LINK_LABEL_ZOOM ||
+              !activeTypes.includes(graphLink.sourceType) ||
+              !activeTypes.includes(graphLink.targetType) ||
+              typeof graphLink.source !== "object" ||
+              typeof graphLink.target !== "object"
+            ) {
+              return;
+            }
+            const x = ((graphLink.source.x ?? 0) + (graphLink.target.x ?? 0)) / 2;
+            const y = ((graphLink.source.y ?? 0) + (graphLink.target.y ?? 0)) / 2;
+            context.font = `${10 / globalScale}px "Segoe UI", sans-serif`;
+            context.textAlign = "center";
+            context.textBaseline = "middle";
+            const width = context.measureText(graphLink.type).width;
+            context.fillStyle = "rgba(10,9,18,.75)";
+            context.fillRect(x - width / 2 - 3 / globalScale, y - 7 / globalScale, width + 6 / globalScale, 14 / globalScale);
+            context.fillStyle = "#B9B5D6";
+            context.fillText(graphLink.type, x, y);
+          }}
           onNodeClick={handleNodeClick}
           onNodeHover={(node) => setHoveredId(node ? String(node.id) : null)}
           onBackgroundClick={() => setSelectedId(null)}
@@ -534,7 +571,7 @@ export default function GraphPage() {
                 color="inherit"
                 size="small"
                 startIcon={<RestartAltIcon />}
-                onClick={() => setActiveTypes(entityTypes)}
+                onClick={() => setHiddenTypes([])}
               >
                 Restablecer
               </Button>
@@ -583,7 +620,7 @@ export default function GraphPage() {
                 size="small"
                 label={selectedEntity.type}
                 sx={{
-                  bgcolor: entityTypeColors[selectedEntity.type],
+                  bgcolor: colorForType(selectedEntity.type),
                   color: "#0E0D17",
                   fontWeight: 600,
                   mb: 1,
@@ -655,8 +692,8 @@ export default function GraphPage() {
                       label={relatedEntity.type}
                       sx={{
                         ml: 1,
-                        bgcolor: `${entityTypeColors[relatedEntity.type]}22`,
-                        color: entityTypeColors[relatedEntity.type],
+                        bgcolor: `${colorForType(relatedEntity.type)}22`,
+                        color: colorForType(relatedEntity.type),
                       }}
                     />
                   </ListItemButton>

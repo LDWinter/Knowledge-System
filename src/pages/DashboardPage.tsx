@@ -22,10 +22,8 @@ import AddIcon from "@mui/icons-material/Add";
 
 import { getEntities, getRelationships, getSources } from "../services/api";
 import { formatDate } from "../services/format";
-import { entityTypeColors } from "../theme";
-import type { Entity, EntityType, Relationship, Source } from "../types";
-
-const entityTypes: EntityType[] = ["Cliente", "Producto", "Pedido"];
+import { colorForType } from "../theme";
+import type { Entity, Relationship, Source } from "../types";
 
 type Stat = {
   label: string;
@@ -86,7 +84,8 @@ export default function DashboardPage() {
     },
   ];
 
-  const countByType = entityTypes.map((type) => ({
+  const types = Array.from(new Set(entities.map((e) => e.type))).sort();
+  const countByType = types.map((type) => ({
     type,
     count: entities.filter((entity) => entity.type === type).length,
   }));
@@ -228,7 +227,7 @@ export default function DashboardPage() {
                         height: "100%",
                         width: `${(item.count / maxCount) * 100}%`,
                         borderRadius: 5,
-                        bgcolor: entityTypeColors[item.type],
+                        bgcolor: colorForType(item.type),
                       }}
                     />
                   </Box>

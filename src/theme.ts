@@ -1,11 +1,14 @@
 import { createTheme } from "@mui/material";
-import type { EntityType } from "./types";
 
-export const entityTypeColors: Record<EntityType, string> = {
-    Cliente: "#8B6CFF",
-    Producto: "#2DD4BF",
-    Pedido: "#FBA94B",
-};
+const COLORS = ["#8B6CFF", "#2DD4BF", "#FBA94B", "#FF6B6B", "#4DABF7", "#51CF66", "#FCC419", "#FF922B", "#9775FA", "#69DB7C"];
+
+export function colorForType(type: string): string {
+  let hash = 0;
+  for (let i = 0; i < type.length; i++) {
+    hash = type.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return COLORS[Math.abs(hash) % COLORS.length];
+}
 
 export const theme = createTheme({
     palette: {

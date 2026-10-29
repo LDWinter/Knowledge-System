@@ -15,7 +15,7 @@ import {
 } from "@mui/material";
 
 import { getEntities, getRelationships } from "../services/api";
-import { entityTypeColors } from "../theme";
+import { colorForType } from "../theme";
 import type { Entity, Relationship } from "../types";
 
 export default function EntityPage() {
@@ -129,7 +129,7 @@ export default function EntityPage() {
           label={entity.type}
           size="small"
           sx={{
-            bgcolor: entityTypeColors[entity.type],
+            bgcolor: colorForType(entity.type),
             color: "#fff",
             fontWeight: 600,
             mb: 1,
