@@ -117,7 +117,10 @@ export function computeWarnings(
     }
     // No disponible (mantenimiento, licencia…) pero asignado a algo
     const estado = String(data.estado ?? "");
-    const assigned = relationships.some((relationship) => relationship.sourceId === entity.id);
+    // Solo cuentan asignaciones («asignado a», «opera»): «empleado de» o «requiere» no lo ponen a trabajar
+    const assigned = relationships.some(
+      (relationship) => relationship.sourceId === entity.id && /asign|opera/i.test(relationship.type),
+    );
     if (NOT_AVAILABLE.test(estado) && assigned) {
       warnings.push({
         kind: "No disponibles pero asignados",
