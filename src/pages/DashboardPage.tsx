@@ -17,7 +17,6 @@ import LinkIcon from "@mui/icons-material/Link";
 import DescriptionIcon from "@mui/icons-material/Description";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
-import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import AddIcon from "@mui/icons-material/Add";
 
 import { getEntities, getRelationships, getSources } from "../services/api";
@@ -284,23 +283,6 @@ export default function DashboardPage() {
         </Card>
       </Box>
 
-      {/* Duplicates teaser */}
-      <Card variant="outlined" sx={{ borderColor: "warning.main" }}>
-        <CardContent sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-          <WarningAmberIcon color="warning" />
-
-          <Box>
-            <Typography sx={{ fontWeight: 600 }}>
-              1 posible duplicado detectado
-            </Typography>
-
-            <Typography variant="body2" color="text.secondary">
-              "Acme S.A." y "ACME SA" parecen ser la misma entidad, y vienen de
-              fuentes distintas.
-            </Typography>
-          </Box>
-        </CardContent>
-      </Card>
     </Box>
   );
 }
